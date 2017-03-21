@@ -3,6 +3,7 @@ package mysqlwarmer
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"sync"
 
 	// mysql driver
@@ -74,10 +75,10 @@ func (opts *Options) preload(tables []string) error {
 			var e Err
 			defer wg.Done()
 
-			fmt.Printf("start: %s \n", targetTable)
+			log.Printf("start: %s \n", targetTable)
 			_, err1 := db.Exec(fmt.Sprintf("LOAD INDEX INTO CACHE %s", targetTable))
 			_, err2 := db.Exec(fmt.Sprintf("SELECT * FROM %s", targetTable))
-			fmt.Printf("end: %s \n", targetTable)
+			log.Printf("end: %s \n", targetTable)
 
 			e.Err1 = err1
 			e.Err2 = err2
