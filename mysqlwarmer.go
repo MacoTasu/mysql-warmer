@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	// mysql driver
+	"github.com/Songmu/prompter"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/howeyc/gopass"
 	flags "github.com/jessevdk/go-flags"
 )
 
@@ -101,12 +101,7 @@ func (opts *Options) preload(tables []string) error {
 func (opts *Options) setPass(args []string) error {
 	for _, element := range args {
 		if element == "--password=" || element == "-p=" {
-			fmt.Printf("Password: ")
-
-			pass, err := gopass.GetPasswd()
-			if err != nil {
-				return err
-			}
+			pass := prompter.Prompt("Password: ", "")
 			opts.Password = fmt.Sprintf("%s", pass)
 			return nil
 		}
