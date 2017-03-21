@@ -1,12 +1,12 @@
 package mysqlwarmer
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
-	"regexp"
 	"testing"
 
 	"github.com/lestrrat/go-test-mysqld"
@@ -111,8 +111,7 @@ func checkVersion() bool {
 		log.Fatalln(err)
 	}
 
-	r := regexp.MustCompile("5.7")
-	return r.MatchString(fmt.Sprintf("%s", out))
+	return bytes.Contains(out, []byte("5.7"))
 }
 
 func TestPreload(t *testing.T) {
