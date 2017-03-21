@@ -38,7 +38,7 @@ func (opts *Options) getTables(engine string) ([]string, error) {
 	}
 	defer db.Close()
 
-	rows, err := db.Query(fmt.Sprintf("SELECT table_name FROM information_schema.tables WHERE engine='%s' AND table_schema='%s'", engine, opts.DataBase))
+	rows, err := db.Query("SELECT table_name FROM information_schema.tables WHERE engine=? AND table_schema=?", engine, opts.DataBase)
 	if err != nil {
 		return nil, err
 	}
