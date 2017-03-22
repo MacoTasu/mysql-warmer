@@ -3,11 +3,12 @@ package mysqlwarmer
 import (
 	"database/sql"
 	"fmt"
-	"sync"
+	"log"
 
+	"github.com/Songmu/prompter"
+	"golang.org/x/sync/errgroup"
 	// mysql driver
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/howeyc/gopass"
 	flags "github.com/jessevdk/go-flags"
 )
 
@@ -18,12 +19,6 @@ type Options struct {
 	User     string `short:"u" long:"user" required:"true" description:"db login user"`
 	Password string `short:"p" long:"password" description:"login user password"`
 	DataBase string `short:"d" long:"database" required:"true" description:"database name"`
-}
-
-// Err is for multiple err in goroutine
-type Err struct {
-	Err1 error
-	Err2 error
 }
 
 func (opts *Options) getDSN() string {
@@ -37,7 +32,7 @@ func (opts *Options) getTables(engine string) ([]string, error) {
 	}
 	defer db.Close()
 
-	rows, err := db.Query(fmt.Sprintf("SELECT table_name FROM information_schema.tables WHERE engine='%s' AND table_schema='%s'", engine, opts.DataBase))
+	rows, err := db.Query("SELECT table_name FROM information_schema.tables WHERE engine=? AND table_schema=?", engine, opts.DataBase)
 	if err != nil {
 		return nil, err
 	}
@@ -66,33 +61,27 @@ func (opts *Options) preload(tables []string) error {
 	defer db.Close()
 	db.SetMaxIdleConns(60)
 
-	var wg sync.WaitGroup
-	errChan := make(chan Err, 1)
+	eg := errgroup.Group{}
 	for _, table := range tables {
-		wg.Add(1)
-		go func(targetTable string) {
-			var e Err
-			defer wg.Done()
+		eg.Go(func() error {
+			log.Printf("start: %s \n", table)
+			_, err := db.Exec(fmt.Sprintf("LOAD INDEX INTO CACHE %s", table))
+			if err != nil {
+				return err
+			}
 
-			fmt.Printf("start: %s \n", targetTable)
-			_, err1 := db.Exec(fmt.Sprintf("LOAD INDEX INTO CACHE %s", targetTable))
-			_, err2 := db.Exec(fmt.Sprintf("SELECT * FROM %s", targetTable))
-			fmt.Printf("end: %s \n", targetTable)
+			_, err = db.Exec(fmt.Sprintf("SELECT * FROM %s", table))
+			if err != nil {
+				return err
+			}
+			log.Printf("end: %s \n", table)
+			return nil
+		})
+	}
 
-			e.Err1 = err1
-			e.Err2 = err2
-
-			errChan <- e
-		}(table)
+	if err := eg.Wait(); err != nil {
+		log.Fatal(err)
 	}
-	e := <-errChan
-	if e.Err1 != nil {
-		return e.Err1
-	}
-	if e.Err2 != nil {
-		return e.Err2
-	}
-	wg.Wait()
 
 	return nil
 }
@@ -100,12 +89,7 @@ func (opts *Options) preload(tables []string) error {
 func (opts *Options) setPass(args []string) error {
 	for _, element := range args {
 		if element == "--password=" || element == "-p=" {
-			fmt.Printf("Password: ")
-
-			pass, err := gopass.GetPasswd()
-			if err != nil {
-				return err
-			}
+			pass := prompter.Prompt("Password: ", "")
 			opts.Password = fmt.Sprintf("%s", pass)
 			return nil
 		}
